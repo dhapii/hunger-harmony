@@ -40,7 +40,7 @@ export function Header({
         <div className="flex items-center gap-4">
           {!isHome && <BackButton />}
           <h1 
-            className="text-lg font-bold cursor-pointer gradient-text hover:opacity-80 transition-opacity"
+            className="text-xl font-bold cursor-pointer gradient-text hover:opacity-80 transition-opacity"
             onClick={() => navigate('/')}
           >
             Hunger's Harmony
