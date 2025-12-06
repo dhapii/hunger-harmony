@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Upload, Plus, X } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Upload, Plus, X, ImagePlus, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,7 @@ export function AddProductForm() {
     shopeefoodUrl: '',
   });
   const [images, setImages] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,10 +52,30 @@ export function AddProductForm() {
     setImages([]);
   };
 
-  const addImageUrl = () => {
-    const url = prompt('Masukkan URL gambar:');
-    if (url) {
-      setImages((prev) => [...prev, url]);
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach((file) => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const result = event.target?.result as string;
+          setImages((prev) => [...prev, result]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        toast({
+          title: 'Format tidak didukung',
+          description: 'Pilih file gambar (JPG, PNG, dll)',
+          variant: 'destructive',
+        });
+      }
+    });
+
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -62,10 +83,17 @@ export function AddProductForm() {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <Card className="glass-card">
       <CardHeader>
-        <CardTitle>Tambah Produk Baru</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <Plus className="h-5 w-5 text-primary" />
+          Tambah Produk Baru
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -93,8 +121,8 @@ export function AddProductForm() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="makanan">Makanan</SelectItem>
-                  <SelectItem value="minuman">Minuman</SelectItem>
+                  <SelectItem value="makanan">🍽️ Makanan</SelectItem>
+                  <SelectItem value="minuman">🥤 Minuman</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -123,10 +151,10 @@ export function AddProductForm() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="panas">Panas</SelectItem>
-                  <SelectItem value="sejuk">Sejuk</SelectItem>
-                  <SelectItem value="dingin">Dingin</SelectItem>
-                  <SelectItem value="semua">Semua Cuaca</SelectItem>
+                  <SelectItem value="panas">☀️ Panas</SelectItem>
+                  <SelectItem value="sejuk">🌤️ Sejuk</SelectItem>
+                  <SelectItem value="dingin">❄️ Dingin</SelectItem>
+                  <SelectItem value="semua">🌈 Semua Cuaca</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -143,30 +171,58 @@ export function AddProductForm() {
             />
           </div>
 
-          {/* Images */}
-          <div className="space-y-2">
-            <Label>Foto Produk</Label>
-            <div className="flex flex-wrap gap-2">
-              {images.map((url, idx) => (
-                <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden">
-                  <img src={url} alt="" className="w-full h-full object-cover" />
+          {/* Images Upload */}
+          <div className="space-y-3">
+            <Label className="flex items-center gap-2">
+              <ImagePlus className="h-4 w-4" />
+              Foto Produk
+            </Label>
+            
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            <div className="flex flex-wrap gap-3">
+              {/* Preview uploaded images */}
+              {images.map((src, idx) => (
+                <div 
+                  key={idx} 
+                  className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-border group"
+                >
+                  <img src={src} alt="" className="w-full h-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removeImage(idx)}
-                    className="absolute top-1 right-1 p-1 bg-background/80 rounded-full"
+                    className="absolute top-1 right-1 p-1.5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X className="h-3 w-3" />
                   </button>
+                  <div className="absolute bottom-1 left-1 bg-background/80 px-1.5 py-0.5 rounded text-xs">
+                    {idx + 1}
+                  </div>
                 </div>
               ))}
+              
+              {/* Add photo button */}
               <button
                 type="button"
-                onClick={addImageUrl}
-                className="w-20 h-20 rounded-lg border-2 border-dashed border-border flex items-center justify-center hover:border-primary transition-colors"
+                onClick={triggerFileInput}
+                className="w-24 h-24 rounded-xl border-2 border-dashed border-primary/50 flex flex-col items-center justify-center gap-1 hover:border-primary hover:bg-primary/5 transition-all"
               >
-                <Plus className="h-6 w-6 text-muted-foreground" />
+                <Camera className="h-6 w-6 text-primary" />
+                <span className="text-xs text-muted-foreground">Pilih Foto</span>
               </button>
             </div>
+
+            <p className="text-xs text-muted-foreground">
+              📱 Klik tombol di atas untuk memilih foto dari laptop atau HP. Bisa pilih beberapa foto sekaligus.
+            </p>
           </div>
 
           {/* Delivery Links */}
@@ -174,8 +230,8 @@ export function AddProductForm() {
             <Label>Link Platform Delivery</Label>
             <div className="grid md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="gofood" className="text-sm text-muted-foreground">
-                  GoFood URL
+                <Label htmlFor="gofood" className="text-sm text-muted-foreground flex items-center gap-1">
+                  🟢 GoFood URL
                 </Label>
                 <Input
                   id="gofood"
@@ -186,8 +242,8 @@ export function AddProductForm() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="grabfood" className="text-sm text-muted-foreground">
-                  GrabFood URL
+                <Label htmlFor="grabfood" className="text-sm text-muted-foreground flex items-center gap-1">
+                  🟢 GrabFood URL
                 </Label>
                 <Input
                   id="grabfood"
@@ -198,8 +254,8 @@ export function AddProductForm() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="shopeefood" className="text-sm text-muted-foreground">
-                  ShopeeFood URL
+                <Label htmlFor="shopeefood" className="text-sm text-muted-foreground flex items-center gap-1">
+                  🟠 ShopeeFood URL
                 </Label>
                 <Input
                   id="shopeefood"
@@ -212,8 +268,8 @@ export function AddProductForm() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full">
-            <Plus className="mr-2 h-4 w-4" />
+          <Button type="submit" className="w-full gap-2">
+            <Plus className="h-4 w-4" />
             Tambah Produk
           </Button>
         </form>
