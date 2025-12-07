@@ -1,53 +1,143 @@
 import { useState, useEffect, createContext, useContext } from 'react';
-import { User, UserRole } from '@/types';
-import { mockUsers } from '@/data/mockData';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+
+export type AppRole = 'superadmin' | 'admin' | 'user';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  session: Session | null;
+  userRole: AppRole | null;
+  profile: {
+    full_name: string | null;
+    phone: string | null;
+    avatar_url: string | null;
+  } | null;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signOut: () => Promise<void>;
   isLoading: boolean;
 }
 
-const STORAGE_KEY = 'hungers_harmony_user';
-
 export function useAuthProvider() {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [userRole, setUserRole] = useState<AppRole | null>(null);
+  const [profile, setProfile] = useState<{
+    full_name: string | null;
+    phone: string | null;
+    avatar_url: string | null;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
-      }
+  const fetchUserRole = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (!error && data) {
+      setUserRole(data.role as AppRole);
     }
-    setIsLoading(false);
+  };
+
+  const fetchProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('full_name, phone, avatar_url')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (!error && data) {
+      setProfile(data);
+    }
+  };
+
+  useEffect(() => {
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        // Defer Supabase calls with setTimeout to prevent deadlock
+        if (session?.user) {
+          setTimeout(() => {
+            fetchUserRole(session.user.id);
+            fetchProfile(session.user.id);
+          }, 0);
+        } else {
+          setUserRole(null);
+          setProfile(null);
+        }
+      }
+    );
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        fetchUserRole(session.user.id);
+        fetchProfile(session.user.id);
+      }
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock authentication - In production, replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const foundUser = mockUsers.find((u) => u.email === email);
+  const signUp = async (email: string, password: string, fullName: string): Promise<{ error: string | null }> => {
+    const redirectUrl = `${window.location.origin}/`;
     
-    if (foundUser && password === 'password123') {
-      setUser(foundUser);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(foundUser));
-      return true;
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: {
+          full_name: fullName
+        }
+      }
+    });
+
+    if (error) {
+      if (error.message.includes('already registered')) {
+        return { error: 'Email sudah terdaftar. Silakan login.' };
+      }
+      return { error: error.message };
     }
-    
-    return false;
+
+    return { error: null };
   };
 
-  const logout = () => {
+  const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        return { error: 'Email atau password salah' };
+      }
+      return { error: error.message };
+    }
+
+    return { error: null };
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem(STORAGE_KEY);
+    setSession(null);
+    setUserRole(null);
+    setProfile(null);
   };
 
-  return { user, login, logout, isLoading };
+  return { user, session, userRole, profile, signUp, signIn, signOut, isLoading };
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);

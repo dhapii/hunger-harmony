@@ -29,7 +29,7 @@ export function Header({
   weather,
   weatherLoading,
 }: HeaderProps) {
-  const { user, logout } = useAuth();
+  const { user, userRole, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isHome = location.pathname === '/';
@@ -60,7 +60,7 @@ export function Header({
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-primary text-primary-foreground">
-                    {user ? user.email[0].toUpperCase() : <User className="h-4 w-4" />}
+                    {user ? user.email?.[0].toUpperCase() : <User className="h-4 w-4" />}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -70,25 +70,25 @@ export function Header({
                 <>
                   <div className="px-2 py-1.5">
                     <p className="text-sm font-medium">{user.email}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{userRole}</p>
                   </div>
                   <DropdownMenuSeparator />
                   
-                  {user.role === 'superadmin' && (
+                  {userRole === 'superadmin' && (
                     <DropdownMenuItem onClick={() => navigate('/superadmin')} className="gap-2">
                       <Shield className="h-4 w-4" />
                       Dashboard Superadmin
                     </DropdownMenuItem>
                   )}
                   
-                  {user.role === 'admin' && (
+                  {userRole === 'admin' && (
                     <DropdownMenuItem onClick={() => navigate('/admin')} className="gap-2">
                       <Settings className="h-4 w-4" />
                       Dashboard Admin
                     </DropdownMenuItem>
                   )}
                   
-                  {user.role === 'user' && (
+                  {userRole === 'user' && (
                     <DropdownMenuItem onClick={() => navigate('/profile')} className="gap-2">
                       <Store className="h-4 w-4" />
                       Profil & Buka Toko
@@ -96,7 +96,7 @@ export function Header({
                   )}
                   
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={logout} className="gap-2 text-destructive">
+                  <DropdownMenuItem onClick={signOut} className="gap-2 text-destructive">
                     <LogOut className="h-4 w-4" />
                     Logout
                   </DropdownMenuItem>

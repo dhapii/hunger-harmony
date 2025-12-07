@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Store, Users, Settings } from 'lucide-react';
+import { Package, Store, Settings, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,20 +10,63 @@ import { ShopSettings } from '@/components/admin/ShopSettings';
 import { AddProductForm } from '@/components/admin/AddProductForm';
 import { Header } from '@/components/Header';
 import { useWeather } from '@/hooks/useWeather';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
+  const { user, userRole, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [province, setProvince] = useState('jakarta');
   const { weather, loading: weatherLoading } = useWeather(province);
+  const [stats, setStats] = useState({ totalProducts: 0, totalShops: 0 });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    if (!authLoading && (!user || (userRole !== 'admin' && userRole !== 'superadmin'))) {
       navigate('/auth');
     }
-  }, [user, navigate]);
+  }, [user, userRole, authLoading, navigate]);
 
-  if (!user) return null;
+  useEffect(() => {
+    if (user && (userRole === 'admin' || userRole === 'superadmin')) {
+      fetchStats();
+    }
+  }, [user, userRole]);
+
+  const fetchStats = async () => {
+    if (!user) return;
+
+    // Get shops owned by this user
+    const { data: shops } = await supabase
+      .from('shops')
+      .select('id')
+      .eq('owner_id', user.id);
+
+    const shopIds = shops?.map(s => s.id) || [];
+
+    // Get products count
+    let productCount = 0;
+    if (shopIds.length > 0) {
+      const { count } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .in('shop_id', shopIds);
+      productCount = count || 0;
+    }
+
+    setStats({
+      totalProducts: productCount,
+      totalShops: shops?.length || 0
+    });
+    setLoading(false);
+  };
+
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen page-transition">
@@ -50,36 +93,29 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid md:grid-cols-3 gap-4">
-          <Card className="glass-card card-hover">
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card className="border-border/50">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Total Produk</CardTitle>
               <Package className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">5</div>
+              <div className="text-2xl font-bold">
+                {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats.totalProducts}
+              </div>
             </CardContent>
           </Card>
-          <Card className="glass-card card-hover">
+          <Card className="border-border/50">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Warung Aktif</CardTitle>
+              <CardTitle className="text-sm font-medium">Toko Saya</CardTitle>
               <Store className="h-4 w-4 text-accent" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">2</div>
+              <div className="text-2xl font-bold">
+                {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats.totalShops}
+              </div>
             </CardContent>
           </Card>
-          {user.role === 'superadmin' && (
-            <Card className="glass-card card-hover">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total Admin</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">2</div>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         {/* Main Content */}
